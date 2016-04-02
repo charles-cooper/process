@@ -48,7 +48,8 @@ import System.Process.Common
 mkProcessHandle :: PHANDLE -> Bool -> IO ProcessHandle
 mkProcessHandle p mb_delegate_ctlc = do
   m <- newMVar (OpenHandle p)
-  return (ProcessHandle m mb_delegate_ctlc)
+  i <- newMVar ()
+  return (ProcessHandle m i mb_delegate_ctlc)
 
 closePHANDLE :: PHANDLE -> IO ()
 closePHANDLE _ = return ()

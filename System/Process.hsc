@@ -234,7 +234,7 @@ withCreateProcess_ fun c action =
 cleanupProcess :: (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
                -> IO ()
 cleanupProcess (mb_stdin, mb_stdout, mb_stderr,
-                ph@(ProcessHandle _ delegating_ctlc)) = do
+                ph@(ProcessHandle _ _ delegating_ctlc)) = do
     terminateProcess ph
     -- Note, it's important that other threads that might be reading/writing
     -- these handles also get killed off, since otherwise they might be holding
@@ -255,7 +255,7 @@ cleanupProcess (mb_stdin, mb_stdout, mb_stderr,
     _ <- forkIO (waitForProcess (resetCtlcDelegation ph) >> return ())
     return ()
   where
-    resetCtlcDelegation (ProcessHandle m _) = ProcessHandle m False
+    resetCtlcDelegation (ProcessHandle m i _) = ProcessHandle m i False
 
 -- ----------------------------------------------------------------------------
 -- spawnProcess/spawnCommand
@@ -581,14 +581,11 @@ detail.
 waitForProcess
   :: ProcessHandle
   -> IO ExitCode
-waitForProcess ph@(ProcessHandle _ delegating_ctlc) = do
+waitForProcess ph@(ProcessHandle _ i delegating_ctlc) = withMVar i $ \() -> do
   p_ <- modifyProcessHandle ph $ \p_ -> return (p_,p_)
   case p_ of
     ClosedHandle e -> return e
     OpenHandle h  -> do
-        -- don't hold the MVar while we call c_waitForProcess...
-        -- (XXX but there's a small race window here during which another
-        -- thread could close the handle or call waitForProcess)
         e <- alloca $ \pret -> do
           throwErrnoIfMinus1Retry_ "waitForProcess" (c_waitForProcess h pret)
           modifyProcessHandle ph $ \p_' ->
@@ -619,7 +616,7 @@ when the process died as the result of a signal.
 -}
 
 getProcessExitCode :: ProcessHandle -> IO (Maybe ExitCode)
-getProcessExitCode ph@(ProcessHandle _ delegating_ctlc) = do
+getProcessExitCode ph@(ProcessHandle _ _ delegating_ctlc) = do
   (m_e, was_open) <- modifyProcessHandle ph $ \p_ ->
     case p_ of
       ClosedHandle e -> return (p_, (Just e, False))
