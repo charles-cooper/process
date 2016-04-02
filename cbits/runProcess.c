@@ -400,6 +400,13 @@ int waitForProcess (ProcHandle handle, int *pret)
 
     if (waitpid(handle, &wstat, 0) < 0)
     {
+        if (errno == ECHILD)
+        {
+            // should we set *pret = 0? shouldn't matter because
+            // downstream code should not read it once they realize
+            // the phandle is closed.
+            return 1;
+        }
         return -1;
     }
 
